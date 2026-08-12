@@ -10,8 +10,16 @@ from win_monitor.service import MonitorService
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="WIN Monitor em modo estudo")
     parser.add_argument("--env", type=Path, help="Caminho opcional para arquivo .env")
-    parser.add_argument("--once", action="store_true", help="Executa uma unica captura e analise")
-    parser.add_argument("--test-telegram", action="store_true", help="Envia mensagem de teste e encerra")
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Executa uma unica captura e analise",
+    )
+    parser.add_argument(
+        "--test-telegram",
+        action="store_true",
+        help="Envia mensagem de teste e encerra",
+    )
     return parser
 
 
@@ -21,14 +29,24 @@ def main() -> None:
         settings = Settings.load(args.env)
     except ValueError as exc:
         raise SystemExit(f"Configuracao invalida: {exc}") from exc
+
     missing = settings.missing_credentials()
     if missing:
-        raise SystemExit("Credenciais ausentes: " + ", ".join(missing) + ". Use a interface grafica ou .env.")
+        names = ", ".join(missing)
+        raise SystemExit(
+            f"Credenciais ausentes: {names}. Use a interface grafica ou .env."
+        )
+
     service = MonitorService(settings)
     if args.test_telegram:
-        service.telegram.test_connection(); print("Telegram testado com sucesso."); return
+        service.telegram.test_connection()
+        print("Telegram testado com sucesso.")
+        return
+
     if args.once:
-        service.process_once(); return
+        service.process_once()
+        return
+
     service.run_forever()
 
 

@@ -43,11 +43,23 @@ class AnalysisResult:
     rationale: str = "-"
 
     @classmethod
-    def from_mapping(cls, payload: dict[str, Any]) -> "AnalysisResult":
+    def from_mapping(cls, payload: dict[str, Any]) -> AnalysisResult:
         result = cls(
-            scenario_type=_enum_or_default(ScenarioType, payload.get("tipo_cenario"), ScenarioType.NO_SETUP),
-            signal=_enum_or_default(SignalDirection, payload.get("sinal"), SignalDirection.NONE),
-            confidence=_enum_or_default(Confidence, payload.get("confianca"), Confidence.LOW),
+            scenario_type=_enum_or_default(
+                ScenarioType,
+                payload.get("tipo_cenario"),
+                ScenarioType.NO_SETUP,
+            ),
+            signal=_enum_or_default(
+                SignalDirection,
+                payload.get("sinal"),
+                SignalDirection.NONE,
+            ),
+            confidence=_enum_or_default(
+                Confidence,
+                payload.get("confianca"),
+                Confidence.LOW,
+            ),
             current_price=_number_or_none(payload.get("preco_atual")),
             bias_m60=str(payload.get("vies_m60") or "-"),
             structure_m15=str(payload.get("estrutura_m15") or "-"),
@@ -56,13 +68,17 @@ class AnalysisResult:
             suggested_stop=_number_or_none(payload.get("stop_sugerido")),
             suggested_target1=_number_or_none(payload.get("alvo1_sugerido")),
             suggested_target2=_number_or_none(payload.get("alvo2_sugerido")),
-            missing_confirmation_code=_text_or_none(payload.get("motivo_nao_confirmou_codigo")),
-            missing_confirmation=_text_or_none(payload.get("motivo_nao_confirmou")),
+            missing_confirmation_code=_text_or_none(
+                payload.get("motivo_nao_confirmou_codigo")
+            ),
+            missing_confirmation=_text_or_none(
+                payload.get("motivo_nao_confirmou")
+            ),
             rationale=str(payload.get("justificativa") or "-"),
         )
         return result.safety_normalized()
 
-    def safety_normalized(self) -> "AnalysisResult":
+    def safety_normalized(self) -> AnalysisResult:
         required = (
             self.signal is not SignalDirection.NONE,
             self.suggested_entry is not None,
@@ -72,8 +88,12 @@ class AnalysisResult:
         if self.scenario_type is ScenarioType.ENTRY and not all(required):
             self.scenario_type = ScenarioType.ALMOST
             self.missing_confirmation_code = "PLANO_INCOMPLETO"
-            self.missing_confirmation = "A leitura indicou entrada, mas faltou direcao, entrada, stop ou alvo1."
-            self.rationale = f"{self.rationale} Entrada bloqueada por plano incompleto."
+            self.missing_confirmation = (
+                "A leitura indicou entrada, mas faltou direcao, entrada, stop ou alvo1."
+            )
+            self.rationale = (
+                f"{self.rationale} Entrada bloqueada por plano incompleto."
+            )
         return self
 
 
@@ -87,7 +107,7 @@ class OpenSignal:
     target2: float | None = None
 
     @classmethod
-    def from_mapping(cls, payload: dict[str, Any]) -> "OpenSignal":
+    def from_mapping(cls, payload: dict[str, Any]) -> OpenSignal:
         return cls(
             timestamp=str(payload["timestamp"]),
             signal=SignalDirection(str(payload["sinal"])),
@@ -99,7 +119,14 @@ class OpenSignal:
 
     def to_mapping(self) -> dict[str, Any]:
         result = asdict(self)
-        return {"timestamp": result["timestamp"], "sinal": self.signal.value, "entrada": result["entry"], "stop": result["stop"], "alvo1": result["target1"], "alvo2": result["target2"]}
+        return {
+            "timestamp": result["timestamp"],
+            "sinal": self.signal.value,
+            "entrada": result["entry"],
+            "stop": result["stop"],
+            "alvo1": result["target1"],
+            "alvo2": result["target2"],
+        }
 
 
 @dataclass(slots=True)
@@ -129,9 +156,23 @@ def _enum_or_default(enum_type: type, value: Any, default: Any) -> Any:
 def _number_or_none(value: Any) -> float | None:
     if value is None or value == "":
         return None
+    if isinstance(value, int | float):
+        return float(value)
+
+    text = str(value).strip().replace(" ", "")
+    if not text:
+        return None
+
+    if "," in text:
+        text = text.replace(".", "").replace(",", ".")
+    elif text.count(".") == 1:
+        integer_part, decimal_part = text.split(".")
+        if decimal_part.isdigit() and len(decimal_part) == 3:
+            text = integer_part + decimal_part
+
     try:
-        return float(str(value).replace(".", "").replace(",", ".")) if isinstance(value, str) and "," in value else float(value)
-    except (TypeError, ValueError):
+        return float(text)
+    except ValueError:
         return None
 
 

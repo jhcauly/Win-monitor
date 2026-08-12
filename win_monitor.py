@@ -1,8 +1,6 @@
-"""Compatibilidade com o prototipo original.
+"""Ponto de entrada de compatibilidade para o WIN Monitor."""
 
-Use `python win_monitor.py` para iniciar o monitor em modo texto.
-Para a interface grafica, use `python -m win_monitor.launcher`.
-"""
+from __future__ import annotations
 
 from win_monitor.cli import main
 
