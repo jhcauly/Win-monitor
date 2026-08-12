@@ -6,6 +6,7 @@ on:
     branches: [main, "feat/**"]
     paths:
       - "src/**"
+      - "README.md"
       - "pyproject.toml"
       - ".github/workflows/build-windows.yml"
 
