@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from win_monitor.config import Settings, app_home, load_dotenv
+from win_monitor.region_selector import CaptureRegionSelector
 from win_monitor.service import MonitorService
 
 
@@ -15,8 +16,8 @@ class LauncherApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("WIN Monitor - Modo Estudo")
-        self.root.geometry("760x650")
-        self.root.minsize(680, 580)
+        self.root.geometry("820x680")
+        self.root.minsize(720, 600)
         self.stop_event = threading.Event()
         self.worker: threading.Thread | None = None
         self.home = app_home()
@@ -94,19 +95,24 @@ class LauncherApp:
         ).pack(side="left")
         ttk.Button(
             buttons,
+            text="Selecionar area",
+            command=self.select_capture_region,
+        ).pack(side="left", padx=8)
+        ttk.Button(
+            buttons,
             text="Testar Telegram",
             command=self.test_telegram,
-        ).pack(side="left", padx=8)
+        ).pack(side="left")
         ttk.Button(
             buttons,
             text="Iniciar monitor",
             command=self.start,
-        ).pack(side="left")
+        ).pack(side="left", padx=8)
         ttk.Button(
             buttons,
             text="Parar",
             command=self.stop,
-        ).pack(side="left", padx=8)
+        ).pack(side="left")
         ttk.Button(
             buttons,
             text="Abrir pasta de dados",
@@ -163,6 +169,18 @@ class LauncherApp:
         os.environ["ENVIAR_TELEGRAM_PARA"] = "ENTRADA,QUASE"
         self._log(f"Configuracao salva em {self.env_path}")
         return True
+
+    def select_capture_region(self) -> None:
+        region = CaptureRegionSelector(self.root).select()
+        if region is None:
+            self._log("Selecao de area cancelada.")
+            return
+
+        value = ",".join(str(coordinate) for coordinate in region)
+        entry = self.entries["REGIAO_CAPTURA"]
+        entry.delete(0, "end")
+        entry.insert(0, value)
+        self._log(f"Area de captura selecionada: {value}")
 
     def _settings(self) -> Settings:
         self.save()
