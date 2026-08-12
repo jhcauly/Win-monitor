@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 from win_monitor.models import AnalysisResult, Confidence, ScenarioType, SignalDirection
 
@@ -54,6 +55,55 @@ class TechnicalObservation:
     fib_context: str = "-"
     notes: str = "-"
     moving_against_position: bool | None = None
+
+    @classmethod
+    def from_mapping(cls, payload: dict[str, Any]) -> TechnicalObservation:
+        return cls(
+            readable=_bool_or_none(payload.get("legivel")) is True,
+            current_price=_number_or_none(payload.get("preco_atual")),
+            ma20_slope=_enum_or_default(
+                Slope,
+                payload.get("ma20_inclinacao_m60"),
+                Slope.UNKNOWN,
+            ),
+            price_vs_ma20=_enum_or_default(
+                Position,
+                payload.get("preco_vs_ma20_m60"),
+                Position.UNKNOWN,
+            ),
+            ma8_vs_ma20=_enum_or_default(
+                Position,
+                payload.get("ma8_vs_ma20_m60"),
+                Position.UNKNOWN,
+            ),
+            ma8_slope=_enum_or_default(
+                Slope,
+                payload.get("ma8_inclinacao_m5"),
+                Slope.UNKNOWN,
+            ),
+            breakout=_enum_or_default(
+                Breakout,
+                payload.get("rompimento_m5"),
+                Breakout.UNKNOWN,
+            ),
+            relevant_top=_number_or_none(payload.get("topo_relevante")),
+            relevant_bottom=_number_or_none(payload.get("fundo_relevante")),
+            candle_closed=_bool_or_none(payload.get("candle_fechado")),
+            in_consolidation=_bool_or_none(payload.get("consolidacao")),
+            swing_confirmed=_bool_or_none(payload.get("pivo_confirmado")),
+            ma8_cross=_enum_or_default(
+                Cross,
+                payload.get("ma8_cruzamento_m5"),
+                Cross.UNKNOWN,
+            ),
+            target1=_number_or_none(payload.get("alvo1_estrutural")),
+            target2=_number_or_none(payload.get("alvo2_estrutural")),
+            fib_context=str(payload.get("contexto_fibonacci") or "-"),
+            notes=str(payload.get("notas") or "-"),
+            moving_against_position=_bool_or_none(
+                payload.get("movimento_contra_posicao")
+            ),
+        )
 
 
 def evaluate_observation(observation: TechnicalObservation) -> AnalysisResult:
@@ -248,3 +298,44 @@ def _structure_text(observation: TechnicalObservation) -> str:
         f"rompimento={observation.breakout.value}; "
         f"consolidacao={observation.in_consolidation}."
     )
+
+
+def _enum_or_default(enum_type: type, value: Any, default: Any) -> Any:
+    try:
+        return enum_type(str(value).strip().upper())
+    except (TypeError, ValueError):
+        return default
+
+
+def _bool_or_none(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if text in {"true", "1", "sim", "yes"}:
+        return True
+    if text in {"false", "0", "nao", "não", "no"}:
+        return False
+    return None
+
+
+def _number_or_none(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+
+    text = str(value).strip().replace(" ", "")
+    if not text:
+        return None
+    if "," in text:
+        text = text.replace(".", "").replace(",", ".")
+    elif text.count(".") == 1:
+        integer_part, decimal_part = text.split(".")
+        if decimal_part.isdigit() and len(decimal_part) == 3:
+            text = integer_part + decimal_part
+    try:
+        return float(text)
+    except ValueError:
+        return None

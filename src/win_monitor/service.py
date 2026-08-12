@@ -11,6 +11,7 @@ from win_monitor.models import AnalysisResult, Confidence, ScenarioType
 from win_monitor.risk import calculate_trade_risk
 from win_monitor.storage import StudyStorage
 from win_monitor.study_image import StudyImageComposer
+from win_monitor.technical import evaluate_observation
 from win_monitor.telegram_client import TelegramClient
 from win_monitor.time_utils import next_candle_close, within_trading_hours
 from win_monitor.vision import AnthropicVisionAnalyzer
@@ -40,7 +41,8 @@ class MonitorService:
     def process_once(self) -> AnalysisResult:
         self.log(f"[{datetime.now().strftime('%H:%M:%S')}] Capturando e analisando...")
         screenshot = self.capture.capture_png()
-        analysis = self.analyzer.analyze(screenshot)
+        observation = self.analyzer.analyze(screenshot)
+        analysis = evaluate_observation(observation)
         risk = calculate_trade_risk(
             analysis,
             max_contracts=self.settings.max_contracts,

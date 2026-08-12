@@ -89,3 +89,25 @@ def test_contrary_ma8_cross_exits_only_when_move_is_adverse() -> None:
 
     observation.moving_against_position = True
     assert should_defensive_exit(observation, SignalDirection.BUY)
+
+
+def test_visual_mapping_is_conservative_and_parses_brazilian_price() -> None:
+    observation = TechnicalObservation.from_mapping(
+        {
+            "legivel": True,
+            "preco_atual": "128.450,5",
+            "ma20_inclinacao_m60": "ALTA",
+            "preco_vs_ma20_m60": "TOCANDO",
+            "ma8_vs_ma20_m60": "ACIMA",
+            "ma8_inclinacao_m5": "ALTA",
+            "ma8_cruzamento_m5": "CRUZOU_CIMA",
+            "rompimento_m5": "ROMPEU_CIMA",
+            "candle_fechado": True,
+            "consolidacao": False,
+            "pivo_confirmado": True,
+        }
+    )
+    assert observation.current_price == 128450.5
+    assert observation.ma20_slope is Slope.UP
+    assert observation.price_vs_ma20 is Position.TOUCHING
+    assert observation.ma8_cross is Cross.UP
