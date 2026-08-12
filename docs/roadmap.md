@@ -26,9 +26,11 @@
 - [x] Importador de CSV intraday no layout Profit/Nelogica.
 - [x] Consolidacao deterministica de candles para M5/M15/M60.
 - [x] Metricas: expectativa, payoff, profit factor, drawdown, MAE e MFE.
-- [ ] Formalizar o tipo de MA8/MA20 antes de simular sinais historicos.
-- [ ] Implementar motor historico sem look-ahead.
-- [ ] Separacao treino, validacao e teste fora da amostra.
+- [x] Implementar SMA e EMA como alternativas explicitas, sem assumir uma delas.
+- [x] Confirmar pivos historicos sem look-ahead.
+- [x] Separacao cronologica de treino, validacao e teste fora da amostra.
+- [ ] Implementar motor historico multi-timeframe de sinais.
+- [ ] Validar a configuracao exata de MA8/MA20 usada no Profit.
 
 ## Fase 2 - ProfitDLL
 
