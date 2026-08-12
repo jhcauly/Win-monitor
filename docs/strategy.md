@@ -1,53 +1,72 @@
-# Estrategia operacional v0.1
+# Estrategia operacional v0.2
 
 ## Principio
 
-A zona de Fibonacci e uma zona de atencao, nao um gatilho. A entrada so pode
-ser classificada como valida quando o contexto M60, a estrutura M15 e o
-gatilho M5 convergem.
+A estrutura de mercado e a MA20 definem o contexto principal. A MA8 funciona
+como gatilho rapido. Fibonacci permanece como contexto auxiliar e hipotese de
+filtro ate ser validado por backtest; nunca e sinal isolado.
 
-## M60: vies
+## MA20: filtro principal de tendencia
 
-- Compra: preco acima da MA20 e MA8 acima da MA20.
-- Venda: preco abaixo da MA20 e MA8 abaixo da MA20.
-- Medias embaracadas ou sem inclinacao: sem vies.
+- Compra: MA20 inclinada para cima.
+- Venda: MA20 inclinada para baixo.
+- O preco pode retornar/tocar a MA20 com pequena margem de seguranca.
+- Em compra, perda confirmada da MA20 para baixo invalida a leitura.
+- Em venda, rompimento confirmado da MA20 para cima invalida a leitura.
+- MA20 lateral, ilegivel ou sem direcao bloqueia nova entrada.
 
-## M15: estrutura
+## MA8: gatilho rapido
 
-- Identificar o ultimo swing relevante por pivo/fractal confirmado.
-- Um pivo que depende de candles a direita so existe depois desses candles
-  fecharem.
-- Mercado em consolidacao deve bloquear a entrada.
-- A retracao de 50% a 61,8% do swing forma a zona de atencao.
+- Compra: MA8 acompanha a alta e fica acima da MA20 ou cruza para cima.
+- Venda: MA8 acompanha a baixa e fica abaixo da MA20 ou cruza para baixo.
+- Cruzamento sem inclinacao e sem estrutura nao e entrada.
 
-## M5: gatilho
+## Estrutura: topo, fundo e rompimento
 
-Dentro da zona de atencao:
+- Usar o topo ou fundo mais proximo e tecnicamente relevante.
+- O pivo precisa estar confirmado sem usar candles futuros.
+- Consolidacao bloqueia entrada ate existir rompimento valido.
+- Compra exige rompimento do topo relevante a favor da tendencia.
+- Venda exige rompimento do fundo relevante a favor da tendencia.
+- O gatilho so e confirmado com candle fechado.
 
-1. o preco cruza a MA8 a favor do vies;
-2. a MA8 inclina na mesma direcao;
-3. o candle fecha;
-4. entrada, stop e alvo ficam legiveis.
+## Entrada, stop e alvo
 
-## Stop e alvos
+- Entrada: rompimento/resumida da estrutura na direcao da MA20, com MA8 alinhada.
+- Stop de compra: fundo tecnico relevante que invalida a operacao.
+- Stop de venda: topo tecnico relevante que invalida a operacao.
+- O alvo deve vir da estrutura tecnica observavel e ser registrado antes da entrada.
+- Regras antigas de alvo fixo e projecoes de Fibonacci ficam como hipoteses de teste,
+  nao como justificativa para inventar um alvo quando a tela nao o sustenta.
 
-- Stop: abaixo do fundo ou acima do topo que originou o swing.
-- Alvo 1: projecao de Fibonacci em 100%.
-- Alvo 2: projecao de Fibonacci em 161,8%.
+## Saida defensiva
+
+- Violacao da MA20 contra a posicao exige saida defensiva.
+- Se o movimento passar a andar contra a posicao e ocorrer cruzamento contrario da
+  MA8, a posicao deve ser encerrada defensivamente.
+- Stop nunca pode ser afastado para aumentar risco.
 
 ## Classificacoes
 
-- `ENTRADA`: todas as condicoes confirmadas.
-- `QUASE`: contexto existente, mas faltou uma confirmacao objetiva.
-- `SEM_SETUP`: sem contexto operacional ou leitura insuficiente.
+- `ENTRADA`: tendencia, estrutura, gatilho, stop e alvo confirmados.
+- `QUASE`: existe contexto, mas falta uma confirmacao objetiva.
+- `SEM_SETUP`: nao existe contexto operacional seguro ou a leitura e insuficiente.
 
 Codigos iniciais de `QUASE`:
 
-- `FIB_SEM_MA8`
 - `MA8_SEM_INCLINACAO`
 - `M60_FRACO`
 - `RANGE`
+- `ROMPIMENTO_AUSENTE`
+- `CANDLE_NAO_FECHADO`
 - `STOP_GRANDE`
 - `RR_INSUFICIENTE`
 - `PIVO_NAO_CONFIRMADO`
+- `PLANO_INCOMPLETO`
 - `LEITURA_INSUFICIENTE`
+
+## Fibonacci
+
+Fibonacci pode ser registrado como contexto de retracao, confluencia ou alvo
+candidato. A influencia real sobre expectativa, payoff e drawdown sera decidida
+por backtest, nao por autoridade visual ou exemplos selecionados.
