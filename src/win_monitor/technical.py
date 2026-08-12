@@ -155,6 +155,14 @@ def evaluate_observation(observation: TechnicalObservation) -> AnalysisResult:
             "A MA8 ainda nao acompanha a direcao da tendencia principal.",
         )
 
+    if not _fast_trigger_confirmed(observation, direction):
+        return _almost(
+            observation,
+            direction,
+            "MA8_SEM_CRUZAMENTO",
+            "A MA8 ainda nao esta acima/abaixo da MA20 nem confirmou cruzamento a favor.",
+        )
+
     expected_breakout = (
         Breakout.UP if direction is SignalDirection.BUY else Breakout.DOWN
     )
@@ -240,6 +248,23 @@ def _trend_direction(observation: TechnicalObservation) -> SignalDirection:
         return SignalDirection.SELL
 
     return SignalDirection.NONE
+
+
+def _fast_trigger_confirmed(
+    observation: TechnicalObservation,
+    direction: SignalDirection,
+) -> bool:
+    if direction is SignalDirection.BUY:
+        return (
+            observation.ma8_vs_ma20 is Position.ABOVE
+            or observation.ma8_cross is Cross.UP
+        )
+    if direction is SignalDirection.SELL:
+        return (
+            observation.ma8_vs_ma20 is Position.BELOW
+            or observation.ma8_cross is Cross.DOWN
+        )
+    return False
 
 
 def _no_setup(

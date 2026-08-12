@@ -1,4 +1,4 @@
-# Estrategia operacional v0.2
+# Estrategia operacional v0.3
 
 ## Principio
 
@@ -19,6 +19,8 @@ filtro ate ser validado por backtest; nunca e sinal isolado.
 
 - Compra: MA8 acompanha a alta e fica acima da MA20 ou cruza para cima.
 - Venda: MA8 acompanha a baixa e fica abaixo da MA20 ou cruza para baixo.
+- Se a MA8 apenas toca a MA20 sem cruzar nem permanecer do lado correto, o setup
+  continua como `QUASE`.
 - Cruzamento sem inclinacao e sem estrutura nao e entrada.
 
 ## Estrutura: topo, fundo e rompimento
@@ -39,6 +41,13 @@ filtro ate ser validado por backtest; nunca e sinal isolado.
 - Regras antigas de alvo fixo e projecoes de Fibonacci ficam como hipoteses de teste,
   nao como justificativa para inventar um alvo quando a tela nao o sustenta.
 
+## Risco/retorno
+
+Enquanto o backtest ainda nao definiu um limiar estatisticamente superior, o motor
+usa `1:1` como piso tecnico de seguranca: o alvo 1 precisa oferecer recompensa
+pelo menos igual ao risco ate o stop. Esse piso e uma decisao de engenharia do
+MVP e deve ser reavaliado com dados, nao tratado como vantagem comprovada.
+
 ## Saida defensiva
 
 - Violacao da MA20 contra a posicao exige saida defensiva.
@@ -46,15 +55,22 @@ filtro ate ser validado por backtest; nunca e sinal isolado.
   MA8, a posicao deve ser encerrada defensivamente.
 - Stop nunca pode ser afastado para aumentar risco.
 
+## Auditoria
+
+Cada ciclo salva separadamente a observacao visual bruta e a decisao produzida
+pelo motor deterministico. Isso permite descobrir se um erro veio da leitura da
+tela ou da regra operacional, em vez de misturar as duas coisas.
+
 ## Classificacoes
 
-- `ENTRADA`: tendencia, estrutura, gatilho, stop e alvo confirmados.
+- `ENTRADA`: tendencia, estrutura, gatilho, stop, alvo e RR confirmados.
 - `QUASE`: existe contexto, mas falta uma confirmacao objetiva.
 - `SEM_SETUP`: nao existe contexto operacional seguro ou a leitura e insuficiente.
 
 Codigos iniciais de `QUASE`:
 
 - `MA8_SEM_INCLINACAO`
+- `MA8_SEM_CRUZAMENTO`
 - `M60_FRACO`
 - `RANGE`
 - `ROMPIMENTO_AUSENTE`

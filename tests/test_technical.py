@@ -45,6 +45,15 @@ def test_price_below_ma20_blocks_buy_bias() -> None:
     assert result.missing_confirmation_code == "M60_FRACO"
 
 
+def test_ma8_touch_without_cross_is_almost() -> None:
+    observation = make_buy_observation()
+    observation.ma8_vs_ma20 = Position.TOUCHING
+    observation.ma8_cross = Cross.NONE
+    result = evaluate_observation(observation)
+    assert result.scenario_type is ScenarioType.ALMOST
+    assert result.missing_confirmation_code == "MA8_SEM_CRUZAMENTO"
+
+
 def test_missing_breakout_is_almost() -> None:
     observation = make_buy_observation()
     observation.breakout = Breakout.NONE

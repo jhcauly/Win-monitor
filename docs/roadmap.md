@@ -16,10 +16,10 @@
 - [x] Formalizar MA20 como filtro principal e MA8 como gatilho rapido.
 - [x] Formalizar topo/fundo, rompimento, candle fechado e consolidacao.
 - [x] Formalizar stop tecnico e saida defensiva.
-- [ ] Adicionar validacao deterministica de risco/retorno.
+- [x] Adicionar piso tecnico de risco/retorno de 1:1, ajustavel apos backtest.
 - [x] Registrar o motivo de cada QUASE.
 - [x] Integrar o motor deterministico ao extrator visual.
-- [ ] Persistir observacao visual bruta para auditoria e backtest.
+- [x] Persistir observacao visual bruta para auditoria e backtest.
 
 ## Fase 1C - backtest
 

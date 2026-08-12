@@ -8,7 +8,7 @@ from win_monitor.capture import ScreenCapture
 from win_monitor.config import Settings
 from win_monitor.formatters import telegram_caption
 from win_monitor.models import AnalysisResult, Confidence, ScenarioType
-from win_monitor.risk import calculate_trade_risk
+from win_monitor.risk import calculate_trade_risk, enforce_minimum_rr
 from win_monitor.storage import StudyStorage
 from win_monitor.study_image import StudyImageComposer
 from win_monitor.technical import evaluate_observation
@@ -43,6 +43,7 @@ class MonitorService:
         screenshot = self.capture.capture_png()
         observation = self.analyzer.analyze(screenshot)
         analysis = evaluate_observation(observation)
+        enforce_minimum_rr(analysis)
         risk = calculate_trade_risk(
             analysis,
             max_contracts=self.settings.max_contracts,
@@ -89,6 +90,7 @@ class MonitorService:
 
         study_image = self.composer.compose(screenshot, analysis, risk)
         image_path = self.storage.save_study_image(study_image, analysis)
+        self.storage.append_observation(observation, str(image_path))
         self.storage.append_analysis_log(analysis, str(image_path))
         self.storage.register_open_signal(analysis)
         self.log(
