@@ -230,8 +230,7 @@ class LauncherApp:
     def open_data_dir(self) -> None:
         self.home.mkdir(parents=True, exist_ok=True)
         if os.name == "nt":
-            startfile = getattr(os, "startfile")
-            startfile(self.home)
+            os.startfile(self.home)
         elif sys.platform == "darwin":
             subprocess.Popen(["open", str(self.home)])
         else:
