@@ -23,9 +23,11 @@
 
 ## Fase 1C - backtest
 
-- [ ] Importador de CSV exportado pelo Profit.
-- [ ] Dados M5/M15/M60 sem look-ahead.
-- [ ] Expectativa, payoff, profit factor, drawdown, MAE e MFE.
+- [x] Importador de CSV intraday no layout Profit/Nelogica.
+- [x] Consolidacao deterministica de candles para M5/M15/M60.
+- [x] Metricas: expectativa, payoff, profit factor, drawdown, MAE e MFE.
+- [ ] Formalizar o tipo de MA8/MA20 antes de simular sinais historicos.
+- [ ] Implementar motor historico sem look-ahead.
 - [ ] Separacao treino, validacao e teste fora da amostra.
 
 ## Fase 2 - ProfitDLL
