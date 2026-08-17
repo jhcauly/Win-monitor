@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
@@ -25,6 +25,14 @@ class Confidence(StrEnum):
     LOW = "BAIXA"
 
 
+class DecisionState(StrEnum):
+    WAIT = "AGUARDAR"
+    PREPARE = "PREPARAR"
+    ARM = "ARMAR"
+    ENTER = "ENTRAR"
+    MANAGE = "GERENCIAR"
+
+
 @dataclass(slots=True)
 class AnalysisResult:
     scenario_type: ScenarioType
@@ -41,6 +49,8 @@ class AnalysisResult:
     missing_confirmation_code: str | None = None
     missing_confirmation: str | None = None
     rationale: str = "-"
+    decision_state: DecisionState = DecisionState.WAIT
+    visual_markers: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_mapping(cls, payload: dict[str, Any]) -> AnalysisResult:
@@ -75,6 +85,12 @@ class AnalysisResult:
                 payload.get("motivo_nao_confirmou")
             ),
             rationale=str(payload.get("justificativa") or "-"),
+            decision_state=_enum_or_default(
+                DecisionState,
+                payload.get("estado_decisao"),
+                DecisionState.WAIT,
+            ),
+            visual_markers=_visual_markers(payload.get("marcacoes_visuais")),
         )
         return result.safety_normalized()
 
@@ -87,6 +103,7 @@ class AnalysisResult:
         )
         if self.scenario_type is ScenarioType.ENTRY and not all(required):
             self.scenario_type = ScenarioType.ALMOST
+            self.decision_state = DecisionState.PREPARE
             self.missing_confirmation_code = "PLANO_INCOMPLETO"
             self.missing_confirmation = (
                 "A leitura indicou entrada, mas faltou direcao, entrada, stop ou alvo1."
@@ -181,3 +198,26 @@ def _text_or_none(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _visual_markers(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    result: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        x = item.get("x")
+        y = item.get("y")
+        if not isinstance(x, int | float) or not isinstance(y, int | float):
+            continue
+        result.append(
+            {
+                "tipo": str(item.get("tipo") or "PONTO").upper(),
+                "rotulo": str(item.get("rotulo") or ""),
+                "timeframe": str(item.get("timeframe") or ""),
+                "x": max(0.0, min(1000.0, float(x))),
+                "y": max(0.0, min(1000.0, float(y))),
+            }
+        )
+    return result
