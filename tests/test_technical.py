@@ -1,8 +1,8 @@
-from win_monitor.models import ScenarioType, SignalDirection
+from win_monitor.models import DecisionState, ScenarioType, SignalDirection
 from win_monitor.technical import (
     Breakout,
-    Cross,
     Position,
+    SetupMode,
     Slope,
     TechnicalObservation,
     evaluate_observation,
@@ -10,113 +10,149 @@ from win_monitor.technical import (
 )
 
 
-def make_buy_observation() -> TechnicalObservation:
+def make_trend_buy_observation() -> TechnicalObservation:
     return TechnicalObservation(
         readable=True,
-        current_price=130500,
+        current_price=170500,
         ma20_slope=Slope.UP,
         price_vs_ma20=Position.ABOVE,
         ma8_vs_ma20=Position.ABOVE,
+        ma20_slope_m15=Slope.UP,
+        price_vs_ma20_m15=Position.ABOVE,
+        context_m15=Slope.UP,
+        ma20_slope_m5=Slope.UP,
+        price_vs_ma20_m5=Position.ABOVE,
         ma8_slope=Slope.UP,
         breakout=Breakout.UP,
-        relevant_top=130450,
-        relevant_bottom=130100,
+        relevant_top=170450,
+        relevant_bottom=170100,
         candle_closed=True,
         in_consolidation=False,
         swing_confirmed=True,
-        target1=130900,
-        target2=131200,
+        pullback_to_ma20_m5=True,
+        resumption_after_pullback_m5=True,
+        setup_mode=SetupMode.TREND,
+        target1=170900,
+        target2=171200,
     )
 
 
-def test_buy_entry_requires_trend_trigger_and_breakout() -> None:
-    result = evaluate_observation(make_buy_observation())
+def test_trend_buy_entry_requires_m5_pullback_and_higher_timeframes() -> None:
+    result = evaluate_observation(make_trend_buy_observation())
     assert result.scenario_type is ScenarioType.ENTRY
     assert result.signal is SignalDirection.BUY
-    assert result.suggested_stop == 130100
-    assert result.suggested_target1 == 130900
+    assert result.decision_state is DecisionState.ENTER
+    assert result.suggested_stop == 170100
 
 
-def test_price_below_ma20_blocks_buy_bias() -> None:
-    observation = make_buy_observation()
+def test_missing_pullback_prepares_instead_of_chasing_price() -> None:
+    observation = make_trend_buy_observation()
+    observation.pullback_to_ma20_m5 = False
+    result = evaluate_observation(observation)
+    assert result.scenario_type is ScenarioType.ALMOST
+    assert result.decision_state is DecisionState.PREPARE
+    assert result.missing_confirmation_code == "AGUARDAR_PULLBACK_MA20_M5"
+
+
+def test_pullback_without_resumption_arms_but_does_not_enter() -> None:
+    observation = make_trend_buy_observation()
+    observation.resumption_after_pullback_m5 = False
+    result = evaluate_observation(observation)
+    assert result.scenario_type is ScenarioType.ALMOST
+    assert result.decision_state is DecisionState.ARM
+    assert result.missing_confirmation_code == "AGUARDAR_RETOMADA_M5"
+
+
+def test_recovery_requires_minimum_space_to_ma20_m60() -> None:
+    observation = make_trend_buy_observation()
+    observation.setup_mode = SetupMode.RECOVERY
+    observation.ma20_slope = Slope.DOWN
     observation.price_vs_ma20 = Position.BELOW
-    result = evaluate_observation(observation)
-    assert result.scenario_type is ScenarioType.NO_SETUP
-    assert result.missing_confirmation_code == "M60_FRACO"
+    observation.context_m15 = Slope.UP
+    observation.closed_beyond_ma8_m60 = True
+    observation.distance_to_ma20_m60_points = 350
 
-
-def test_ma8_touch_without_cross_is_almost() -> None:
-    observation = make_buy_observation()
-    observation.ma8_vs_ma20 = Position.TOUCHING
-    observation.ma8_cross = Cross.NONE
     result = evaluate_observation(observation)
     assert result.scenario_type is ScenarioType.ALMOST
-    assert result.missing_confirmation_code == "MA8_SEM_CRUZAMENTO"
+    assert result.missing_confirmation_code == "CONTEXTO_MAIOR_NAO_CONFIRMA"
 
 
-def test_missing_breakout_is_almost() -> None:
-    observation = make_buy_observation()
-    observation.breakout = Breakout.NONE
+def test_recovery_is_allowed_with_space_and_m15_confirmation() -> None:
+    observation = make_trend_buy_observation()
+    observation.setup_mode = SetupMode.RECOVERY
+    observation.ma20_slope = Slope.DOWN
+    observation.price_vs_ma20 = Position.BELOW
+    observation.context_m15 = Slope.UP
+    observation.closed_beyond_ma8_m60 = True
+    observation.distance_to_ma20_m60_points = 700
+
     result = evaluate_observation(observation)
-    assert result.scenario_type is ScenarioType.ALMOST
-    assert result.missing_confirmation_code == "ROMPIMENTO_AUSENTE"
+    assert result.scenario_type is ScenarioType.ENTRY
+    assert result.signal is SignalDirection.BUY
 
 
 def test_sell_uses_relevant_top_as_stop() -> None:
     observation = TechnicalObservation(
         readable=True,
-        current_price=129500,
+        current_price=169500,
         ma20_slope=Slope.DOWN,
         price_vs_ma20=Position.BELOW,
         ma8_vs_ma20=Position.BELOW,
+        ma20_slope_m15=Slope.DOWN,
+        price_vs_ma20_m15=Position.BELOW,
+        context_m15=Slope.DOWN,
+        ma20_slope_m5=Slope.DOWN,
+        price_vs_ma20_m5=Position.BELOW,
         ma8_slope=Slope.DOWN,
         breakout=Breakout.DOWN,
-        relevant_top=129900,
-        relevant_bottom=129550,
+        relevant_top=169900,
+        relevant_bottom=169450,
         candle_closed=True,
         in_consolidation=False,
         swing_confirmed=True,
-        target1=129100,
+        pullback_to_ma20_m5=True,
+        resumption_after_pullback_m5=True,
+        setup_mode=SetupMode.TREND,
+        target1=169100,
     )
     result = evaluate_observation(observation)
     assert result.scenario_type is ScenarioType.ENTRY
     assert result.signal is SignalDirection.SELL
-    assert result.suggested_stop == 129900
+    assert result.suggested_stop == 169900
 
 
-def test_ma20_violation_forces_defensive_exit() -> None:
-    observation = make_buy_observation()
-    observation.price_vs_ma20 = Position.BELOW
+def test_ma20_m5_violation_forces_defensive_exit() -> None:
+    observation = make_trend_buy_observation()
+    observation.price_vs_ma20_m5 = Position.BELOW
     assert should_defensive_exit(observation, SignalDirection.BUY)
 
 
-def test_contrary_ma8_cross_exits_only_when_move_is_adverse() -> None:
-    observation = make_buy_observation()
-    observation.ma8_cross = Cross.DOWN
-    observation.moving_against_position = False
-    assert not should_defensive_exit(observation, SignalDirection.BUY)
-
-    observation.moving_against_position = True
-    assert should_defensive_exit(observation, SignalDirection.BUY)
-
-
-def test_visual_mapping_is_conservative_and_parses_brazilian_price() -> None:
+def test_visual_mapping_parses_projected_timeframes() -> None:
     observation = TechnicalObservation.from_mapping(
         {
             "legivel": True,
-            "preco_atual": "128.450,5",
-            "ma20_inclinacao_m60": "ALTA",
-            "preco_vs_ma20_m60": "TOCANDO",
-            "ma8_vs_ma20_m60": "ACIMA",
+            "preco_atual": "170.450,5",
+            "ma20_inclinacao_m60": "BAIXA",
+            "preco_vs_ma20_m60": "ABAIXO",
+            "ma8_vs_ma20_m60": "ABAIXO",
+            "fechou_alem_ma8_m60": True,
+            "distancia_ma20_m60_pontos": 620,
+            "ma20_inclinacao_m15": "ALTA",
+            "preco_vs_ma20_m15": "ACIMA",
+            "contexto_m15": "ALTA",
+            "ma20_inclinacao_m5": "ALTA",
+            "preco_vs_ma20_m5": "ACIMA",
             "ma8_inclinacao_m5": "ALTA",
-            "ma8_cruzamento_m5": "CRUZOU_CIMA",
             "rompimento_m5": "ROMPEU_CIMA",
+            "retorno_ma20_m5": True,
+            "retomada_apos_correcao_m5": True,
             "candle_fechado": True,
             "consolidacao": False,
             "pivo_confirmado": True,
+            "modo_setup": "RECOVERY",
         }
     )
-    assert observation.current_price == 128450.5
-    assert observation.ma20_slope is Slope.UP
-    assert observation.price_vs_ma20 is Position.TOUCHING
-    assert observation.ma8_cross is Cross.UP
+    assert observation.current_price == 170450.5
+    assert observation.context_m15 is Slope.UP
+    assert observation.setup_mode is SetupMode.RECOVERY
+    assert observation.distance_to_ma20_m60_points == 620
