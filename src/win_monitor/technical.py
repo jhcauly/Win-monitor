@@ -35,21 +35,43 @@ class Cross(StrEnum):
     UNKNOWN = "DESCONHECIDO"
 
 
+class SetupMode(StrEnum):
+    TREND = "TREND"
+    RECOVERY = "RECOVERY"
+    NONE = "NENHUM"
+
+
 @dataclass(slots=True)
 class TechnicalObservation:
     readable: bool
     current_price: float | None
+
     ma20_slope: Slope
     price_vs_ma20: Position
     ma8_vs_ma20: Position
-    ma8_slope: Slope
-    breakout: Breakout
-    relevant_top: float | None
-    relevant_bottom: float | None
-    candle_closed: bool | None
-    in_consolidation: bool | None
-    swing_confirmed: bool | None
+
+    ma20_slope_m15: Slope = Slope.UNKNOWN
+    price_vs_ma20_m15: Position = Position.UNKNOWN
+    context_m15: Slope = Slope.UNKNOWN
+
+    ma20_slope_m5: Slope = Slope.UNKNOWN
+    price_vs_ma20_m5: Position = Position.UNKNOWN
+    ma8_slope: Slope = Slope.UNKNOWN
     ma8_cross: Cross = Cross.NONE
+    breakout: Breakout = Breakout.UNKNOWN
+
+    relevant_top: float | None = None
+    relevant_bottom: float | None = None
+    candle_closed: bool | None = None
+    in_consolidation: bool | None = None
+    swing_confirmed: bool | None = None
+    pullback_to_ma20_m5: bool | None = None
+    resumption_after_pullback_m5: bool | None = None
+
+    closed_beyond_ma8_m60: bool | None = None
+    distance_to_ma20_m60_points: float | None = None
+    setup_mode: SetupMode = SetupMode.NONE
+
     target1: float | None = None
     target2: float | None = None
     fib_context: str = "-"
@@ -65,14 +87,24 @@ class TechnicalObservation:
             ma20_slope=_enum_or_default(Slope, payload.get("ma20_inclinacao_m60"), Slope.UNKNOWN),
             price_vs_ma20=_enum_or_default(Position, payload.get("preco_vs_ma20_m60"), Position.UNKNOWN),
             ma8_vs_ma20=_enum_or_default(Position, payload.get("ma8_vs_ma20_m60"), Position.UNKNOWN),
+            ma20_slope_m15=_enum_or_default(Slope, payload.get("ma20_inclinacao_m15"), Slope.UNKNOWN),
+            price_vs_ma20_m15=_enum_or_default(Position, payload.get("preco_vs_ma20_m15"), Position.UNKNOWN),
+            context_m15=_enum_or_default(Slope, payload.get("contexto_m15"), Slope.UNKNOWN),
+            ma20_slope_m5=_enum_or_default(Slope, payload.get("ma20_inclinacao_m5"), Slope.UNKNOWN),
+            price_vs_ma20_m5=_enum_or_default(Position, payload.get("preco_vs_ma20_m5"), Position.UNKNOWN),
             ma8_slope=_enum_or_default(Slope, payload.get("ma8_inclinacao_m5"), Slope.UNKNOWN),
+            ma8_cross=_enum_or_default(Cross, payload.get("ma8_cruzamento_m5"), Cross.UNKNOWN),
             breakout=_enum_or_default(Breakout, payload.get("rompimento_m5"), Breakout.UNKNOWN),
             relevant_top=_number_or_none(payload.get("topo_relevante")),
             relevant_bottom=_number_or_none(payload.get("fundo_relevante")),
             candle_closed=_bool_or_none(payload.get("candle_fechado")),
             in_consolidation=_bool_or_none(payload.get("consolidacao")),
             swing_confirmed=_bool_or_none(payload.get("pivo_confirmado")),
-            ma8_cross=_enum_or_default(Cross, payload.get("ma8_cruzamento_m5"), Cross.UNKNOWN),
+            pullback_to_ma20_m5=_bool_or_none(payload.get("retorno_ma20_m5")),
+            resumption_after_pullback_m5=_bool_or_none(payload.get("retomada_apos_correcao_m5")),
+            closed_beyond_ma8_m60=_bool_or_none(payload.get("fechou_alem_ma8_m60")),
+            distance_to_ma20_m60_points=_number_or_none(payload.get("distancia_ma20_m60_pontos")),
+            setup_mode=_enum_or_default(SetupMode, payload.get("modo_setup"), SetupMode.NONE),
             target1=_number_or_none(payload.get("alvo1_estrutural")),
             target2=_number_or_none(payload.get("alvo2_estrutural")),
             fib_context=str(payload.get("contexto_fibonacci") or "-"),
@@ -84,45 +116,61 @@ class TechnicalObservation:
 
 def evaluate_observation(o: TechnicalObservation) -> AnalysisResult:
     if not o.readable:
-        return _no_setup(o, "LEITURA_INSUFICIENTE", "Nao foi possivel ler com seguranca os elementos obrigatorios.")
+        return _no_setup(o, "LEITURA_INSUFICIENTE", "Nao foi possivel ler com seguranca o grafico M5 e as medias projetadas.")
 
-    direction = _trend_direction(o)
+    direction = _direction_from_m5(o)
     if direction is SignalDirection.NONE:
-        return _no_setup(o, "M60_FRACO", "A inclinacao da MA20 e a posicao do preco/MA8 nao confirmam tendencia.")
-    if o.in_consolidation is True:
-        return _almost(o, direction, "RANGE", "Consolidacao detectada; rompimentos dentro da faixa ficam bloqueados.", DecisionState.WAIT)
-    if o.swing_confirmed is not True:
-        return _almost(o, direction, "PIVO_NAO_CONFIRMADO", "O topo/fundo relevante ainda nao esta confirmado sem olhar candles futuros.", DecisionState.PREPARE)
-    if o.candle_closed is not True:
-        return _almost(o, direction, "CANDLE_NAO_FECHADO", "O gatilho so vale depois do fechamento do candle.", DecisionState.ARM)
+        return _no_setup(o, "M5_SEM_DIRECAO", "O M5 ainda nao formou direcao operacional clara.")
 
-    expected_slope = Slope.UP if direction is SignalDirection.BUY else Slope.DOWN
-    if o.ma8_slope is not expected_slope:
-        return _almost(o, direction, "MA8_SEM_INCLINACAO", "A MA8 ainda nao acompanha a direcao esperada.", DecisionState.PREPARE)
-    if not _fast_trigger_confirmed(o, direction):
-        return _almost(o, direction, "MA8_SEM_CRUZAMENTO", "A MA8 ainda nao confirmou o gatilho a favor.", DecisionState.PREPARE)
+    if o.in_consolidation is True:
+        return _almost(o, direction, "RANGE", "Consolidacao detectada no M5. Aguardar saida da faixa.", DecisionState.WAIT)
+
+    if not _higher_timeframe_allows(o, direction):
+        return _almost(
+            o,
+            direction,
+            "CONTEXTO_MAIOR_NAO_CONFIRMA",
+            "M15/M60 projetados no M5 ainda nao oferecem contexto ou espaco suficiente para esta direcao.",
+            DecisionState.WAIT,
+        )
+
+    if o.swing_confirmed is not True:
+        return _almost(o, direction, "PIVO_NAO_CONFIRMADO", "O pivo do M5 ainda nao esta confirmado com candles fechados.", DecisionState.PREPARE)
+
+    if o.pullback_to_ma20_m5 is not True:
+        return _almost(o, direction, "AGUARDAR_PULLBACK_MA20_M5", "Aguardar a correcao do M5 ate a MA20_M5 antes de perseguir o movimento.", DecisionState.PREPARE)
+
+    if o.resumption_after_pullback_m5 is not True:
+        return _almost(o, direction, "AGUARDAR_RETOMADA_M5", "O preco corrigiu na MA20_M5, mas a retomada ainda nao foi confirmada.", DecisionState.ARM)
+
+    if o.candle_closed is not True:
+        return _almost(o, direction, "CANDLE_NAO_FECHADO", "O candle do gatilho precisa fechar antes da entrada.", DecisionState.ARM)
 
     expected_breakout = Breakout.UP if direction is SignalDirection.BUY else Breakout.DOWN
     if o.breakout is not expected_breakout:
-        return _almost(o, direction, "ROMPIMENTO_AUSENTE", "O topo/fundo tecnico relevante ainda nao foi rompido.", DecisionState.ARM)
+        return _almost(o, direction, "ROMPIMENTO_AUSENTE", "A retomada ainda nao rompeu o topo/fundo tecnico do gatilho.", DecisionState.ARM)
 
     stop = o.relevant_bottom if direction is SignalDirection.BUY else o.relevant_top
     if o.current_price is None or stop is None or o.target1 is None:
         return _almost(o, direction, "PLANO_INCOMPLETO", "Falta preco, stop tecnico ou alvo estrutural para montar o plano completo.", DecisionState.ARM)
 
+    confidence = Confidence.HIGH if o.setup_mode is SetupMode.TREND else Confidence.MEDIUM
     return AnalysisResult(
         scenario_type=ScenarioType.ENTRY,
         signal=direction,
-        confidence=Confidence.HIGH,
+        confidence=confidence,
         current_price=o.current_price,
         bias_m60=_bias_text(o, direction),
-        structure_m15=_structure_text(o),
-        fib_zone_m5=o.fib_context,
+        structure_m15=_m15_text(o),
+        fib_zone_m5=_m5_text(o),
         suggested_entry=o.current_price,
         suggested_stop=stop,
         suggested_target1=o.target1,
         suggested_target2=o.target2,
-        rationale="Contexto, estrutura, gatilho e rompimento confirmados com candle fechado.",
+        rationale=(
+            f"Modo {o.setup_mode.value}: contexto maior permitido; M5 confirmou pivo, "
+            "pullback na MA20, retomada e rompimento com candle fechado."
+        ),
         decision_state=DecisionState.ENTER,
         visual_markers=o.visual_markers,
     )
@@ -130,27 +178,43 @@ def evaluate_observation(o: TechnicalObservation) -> AnalysisResult:
 
 def should_defensive_exit(o: TechnicalObservation, position: SignalDirection) -> bool:
     if position is SignalDirection.BUY:
-        return o.price_vs_ma20 is Position.BELOW or (o.moving_against_position is True and o.ma8_cross is Cross.DOWN)
+        return o.price_vs_ma20_m5 is Position.BELOW or (o.moving_against_position is True and o.ma8_cross is Cross.DOWN)
     if position is SignalDirection.SELL:
-        return o.price_vs_ma20 is Position.ABOVE or (o.moving_against_position is True and o.ma8_cross is Cross.UP)
+        return o.price_vs_ma20_m5 is Position.ABOVE or (o.moving_against_position is True and o.ma8_cross is Cross.UP)
     return False
 
 
-def _trend_direction(o: TechnicalObservation) -> SignalDirection:
-    buy = {Position.ABOVE, Position.TOUCHING}
-    sell = {Position.BELOW, Position.TOUCHING}
-    if o.ma20_slope is Slope.UP and o.price_vs_ma20 in buy and o.ma8_vs_ma20 in buy:
+def _direction_from_m5(o: TechnicalObservation) -> SignalDirection:
+    if o.ma8_slope is Slope.UP and o.price_vs_ma20_m5 in {Position.ABOVE, Position.TOUCHING}:
         return SignalDirection.BUY
-    if o.ma20_slope is Slope.DOWN and o.price_vs_ma20 in sell and o.ma8_vs_ma20 in sell:
+    if o.ma8_slope is Slope.DOWN and o.price_vs_ma20_m5 in {Position.BELOW, Position.TOUCHING}:
         return SignalDirection.SELL
     return SignalDirection.NONE
 
 
-def _fast_trigger_confirmed(o: TechnicalObservation, direction: SignalDirection) -> bool:
-    if direction is SignalDirection.BUY:
-        return o.ma8_vs_ma20 is Position.ABOVE or o.ma8_cross is Cross.UP
-    if direction is SignalDirection.SELL:
-        return o.ma8_vs_ma20 is Position.BELOW or o.ma8_cross is Cross.DOWN
+def _higher_timeframe_allows(o: TechnicalObservation, direction: SignalDirection) -> bool:
+    if o.setup_mode is SetupMode.TREND:
+        if direction is SignalDirection.BUY:
+            return (
+                o.ma20_slope is Slope.UP
+                and o.context_m15 is Slope.UP
+                and o.price_vs_ma20 in {Position.ABOVE, Position.TOUCHING}
+            )
+        return (
+            o.ma20_slope is Slope.DOWN
+            and o.context_m15 is Slope.DOWN
+            and o.price_vs_ma20 in {Position.BELOW, Position.TOUCHING}
+        )
+
+    if o.setup_mode is SetupMode.RECOVERY:
+        if o.closed_beyond_ma8_m60 is not True:
+            return False
+        if o.distance_to_ma20_m60_points is None or o.distance_to_ma20_m60_points < 400:
+            return False
+        if direction is SignalDirection.BUY:
+            return o.context_m15 is Slope.UP
+        return o.context_m15 is Slope.DOWN
+
     return False
 
 
@@ -160,9 +224,9 @@ def _no_setup(o: TechnicalObservation, code: str, reason: str) -> AnalysisResult
         signal=SignalDirection.NONE,
         confidence=Confidence.LOW,
         current_price=o.current_price,
-        bias_m60="Sem vies confirmado",
-        structure_m15=_structure_text(o),
-        fib_zone_m5=o.fib_context,
+        bias_m60=_bias_text(o, SignalDirection.NONE),
+        structure_m15=_m15_text(o),
+        fib_zone_m5=_m5_text(o),
         missing_confirmation_code=code,
         missing_confirmation=reason,
         rationale=reason,
@@ -178,8 +242,8 @@ def _almost(o: TechnicalObservation, direction: SignalDirection, code: str, reas
         confidence=Confidence.MEDIUM,
         current_price=o.current_price,
         bias_m60=_bias_text(o, direction),
-        structure_m15=_structure_text(o),
-        fib_zone_m5=o.fib_context,
+        structure_m15=_m15_text(o),
+        fib_zone_m5=_m5_text(o),
         missing_confirmation_code=code,
         missing_confirmation=reason,
         rationale=reason,
@@ -189,11 +253,27 @@ def _almost(o: TechnicalObservation, direction: SignalDirection, code: str, reas
 
 
 def _bias_text(o: TechnicalObservation, direction: SignalDirection) -> str:
-    return f"{direction.value}: MA20 {o.ma20_slope.value}; preco {o.price_vs_ma20.value}; MA8 {o.ma8_vs_ma20.value}."
+    return (
+        f"Modo={o.setup_mode.value}; direcao={direction.value}; MA20_M60={o.ma20_slope.value}; "
+        f"preco_vs_MA20_M60={o.price_vs_ma20.value}; MA8_M60_vs_MA20_M60={o.ma8_vs_ma20.value}; "
+        f"distancia_MA20_M60={o.distance_to_ma20_m60_points}."
+    )
 
 
-def _structure_text(o: TechnicalObservation) -> str:
-    return f"Topo={o.relevant_top}; fundo={o.relevant_bottom}; rompimento={o.breakout.value}; consolidacao={o.in_consolidation}."
+def _m15_text(o: TechnicalObservation) -> str:
+    return (
+        f"contexto={o.context_m15.value}; MA20_M15={o.ma20_slope_m15.value}; "
+        f"preco_vs_MA20_M15={o.price_vs_ma20_m15.value}."
+    )
+
+
+def _m5_text(o: TechnicalObservation) -> str:
+    return (
+        f"MA8_M5={o.ma8_slope.value}; MA20_M5={o.ma20_slope_m5.value}; "
+        f"preco_vs_MA20_M5={o.price_vs_ma20_m5.value}; pullback_MA20={o.pullback_to_ma20_m5}; "
+        f"retomada={o.resumption_after_pullback_m5}; rompimento={o.breakout.value}; "
+        f"topo={o.relevant_top}; fundo={o.relevant_bottom}."
+    )
 
 
 def _visual_markers(value: Any) -> list[dict[str, Any]]:
