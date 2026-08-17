@@ -1,0 +1,43 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, "feat/**"]
+    paths:
+      - "src/**"
+      - "README.md"
+      - "pyproject.toml"
+      - ".github/workflows/build-windows.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Build executable
+        shell: powershell
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed `
+            --name WinMonitor `
+            --paths src `
+            --collect-all anthropic `
+            --collect-all PIL `
+            --hidden-import tkinter `
+            src/win_monitor/launcher.py
+      - name: Add readme to package
+        shell: powershell
+        run: Copy-Item README.md dist/LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WinMonitor-Windows
+          path: |
+            dist/WinMonitor.exe
+            dist/LEIA-ME.txt
+          retention-days: 30

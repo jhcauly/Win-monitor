@@ -1,21 +1,31 @@
+# Credenciais e configuracoes locais
+.env
+.env.*
+!.env.example
+
+# Saidas do monitor
+capturas/
+data/
+logs/
+sinais_log.csv
+sinais_abertos.json
+*.log
+
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.ruff_cache/
 .venv/
 venv/
 
-# Secrets
-.env
-*.env
+# Build
+build/
+dist/
+*.spec
 
-# Runtime data
-capturas/
-diagnostics/
-sinais_log.csv
-sinais_abertos.json
-
-# OS/editor
-.DS_Store
-Thumbs.db
+# IDE / sistema
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
